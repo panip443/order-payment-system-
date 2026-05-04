@@ -459,7 +459,7 @@
 // ============================================================
 // STATE
 // ============================================================
-let SHEET_URL = localStorage.getItem('cust_sheet_url') || 'https://script.google.com/macros/s/AKfycbxo0PrOazBO8ladouD5xWsqwVG0UkGZgLCnGbNVgZyaQMeG9kTVK0mAIG5DLpN4tiCM/exec';
+let SHEET_URL = localStorage.getItem('cust_sheet_url') || 'https://script.google.com/macros/s/AKfycbxIgUldAsI5LgQrtsodGm3DSfnfwoX-87cJfYqEdFXAwwdJC6BjtS1vD5Fi8D_KeYoR/exec';
 let entries   = JSON.parse(localStorage.getItem('cust_entries') || '[]');
 let customers = JSON.parse(localStorage.getItem('cust_names') ||
   JSON.stringify(['ลูกค้าที่ 1','ลูกค้าที่ 2','ลูกค้าที่ 3']));
@@ -1172,42 +1172,41 @@ async function saveIceOrder(){
     const price = parseFloat(document.querySelector(`.ice-price[data-type="${type}"]`)?.value)||0;
     const qty   = parseFloat(document.querySelector(`.ice-qty[data-type="${type}"]`)?.value)||0;
     if(qty>0){ items[type]={price,qty,sub:price*qty}; total+=price*qty; }
-    // บันทึกราคาปัจจุบันไว้ใน icePrices
     if(!icePrices[cust]) icePrices[cust]={};
     icePrices[cust][type] = price;
   });
 
   if(total===0){ alert('กรุณากรอกจำนวนน้ำแข็งอย่างน้อย 1 รายการค่ะ'); return; }
 
+  // Disable ปุ่มทันที กันกดซ้ำ
+  const btns = document.querySelectorAll('#tab-order .btn-save');
+  btns.forEach(b=>{ b.disabled=true; b.style.opacity='.5'; b.textContent='⏳ กำลังบันทึก...'; });
+
   localStorage.setItem('ice_prices', JSON.stringify(icePrices));
-
   const bonusItems = getBonusItems();
-
-  // บันทึกลง localStorage ด้วย
   const orders = JSON.parse(localStorage.getItem('ice_orders')||'[]');
   orders.unshift({id:Date.now(), date, customer:cust, driver, round, note, total, bonusItems});
   localStorage.setItem('ice_orders', JSON.stringify(orders));
 
-  // Save to Sheets
+  // ส่ง Sheets ครั้งเดียว (ไม่ await ให้รอ)
   if(SHEET_URL){
-    await fetch(SHEET_URL, {
+    fetch(SHEET_URL, {
       method:'POST', mode:'no-cors',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ action:'saveIceOrder', date, customer:cust, driver, round, note,
-        items:JSON.stringify(items), total }),
-      redirect:'follow'
-    });
-    // Save updated prices
-    await fetch(SHEET_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ action:'saveIcePrices', customer:cust, prices:icePrices[cust] }),
+      body:JSON.stringify({
+        action:'saveIceOrderWithPrices',
+        date, customer:cust, driver, round, note,
+        items:JSON.stringify(items),
+        bonusItems:JSON.stringify(bonusItems),
+        total, prices:icePrices[cust]
+      }),
       redirect:'follow'
     });
   }
 
   showToast(`บันทึกออเดอร์ ${cust} ยอด ฿${fmt(total)} สำเร็จ ✅`);
   resetIceOrder();
+  btns.forEach(b=>{ b.disabled=false; b.style.opacity='1'; b.textContent=b.id==='btnSaveOrder'?'💾 บันทึกออเดอร์':'💾 บันทึก + โยงไปยอดค้างจ่าย'; });
 }
 
 async function saveIceOrderAndLink(){
