@@ -274,7 +274,7 @@
     <div class="form-row">
       <div class="form-group"><label>วันที่</label><input type="date" id="o_date"></div>
       <div class="form-group"><label>ลูกค้า</label>
-        <select id="o_cust" onchange="loadIcePrices()"><option value="">-- เลือกลูกค้า --</option></select>
+        <select id="o_cust" onchange="loadIcePrices(); autoFillDriver()"><option value="">-- เลือกลูกค้า --</option></select>
       </div>
       <div class="form-group"><label>คนขับ</label>
         <select id="o_driver"><option value="">-- เลือกคนขับ --</option></select>
@@ -850,6 +850,17 @@ function exportCSV(){
 // ============================================================
 // ICE ORDER — POPULATE SELECTS
 // ============================================================
+function autoFillDriver(){
+  const cust = document.getElementById('o_cust').value;
+  if(!cust) return;
+  const drvs = customerDriverMap[cust] || [];
+  // กรองเอาคนขับจริง (ไม่ใช่ "มาเอาเองที่โรงงาน")
+  const realDrivers = drvs.filter(d => d !== 'มาเอาเองที่โรงงาน');
+  if(realDrivers.length > 0){
+    document.getElementById('o_driver').value = realDrivers[0];
+  }
+}
+
 function populateOrderSelects(){
   const custSel = document.getElementById('o_cust');
   const drvSel = document.getElementById('o_driver');
