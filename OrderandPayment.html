@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบติดตามลูกค้า</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --dark:#1B3A6B; --mid:#2563B0; --light:#DBEAFE;
+    --accent:#F59E0B; --green:#065F46; --green-bg:#D1FAE5;
+    --red:#991B1B; --red-bg:#FEE2E2; --yellow-bg:#FFF9C4;
+    --gray:#F1F5F9; --text:#1E293B; --muted:#64748B;
+    --border:#CBD5E1; --white:#ffffff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Sarabun',sans-serif;background:#EFF6FF;color:var(--text);min-height:100vh;}
+
+  /* SETUP */
+  #setupOverlay{position:fixed;inset:0;background:rgba(15,23,42,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);}
+  .setup-box{background:white;border-radius:20px;padding:32px;max-width:520px;width:100%;box-shadow:0 25px 60px rgba(0,0,0,0.3);}
+  .setup-box h2{font-size:1.3rem;color:var(--dark);margin-bottom:8px;}
+  .setup-box p{color:var(--muted);font-size:0.88rem;line-height:1.6;margin-bottom:18px;}
+  .setup-input-row{display:flex;gap:10px;margin-top:12px;}
+  .setup-input-row input{flex:1;border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-family:'Sarabun',sans-serif;font-size:0.93rem;}
+  .setup-input-row input:focus{outline:none;border-color:var(--mid);}
+  .btn-primary{background:linear-gradient(135deg,var(--mid),var(--dark));color:white;border:none;border-radius:10px;padding:10px 20px;font-family:'Sarabun',sans-serif;font-size:0.93rem;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .btn-skip{margin-top:8px;background:none;border:none;color:var(--muted);font-family:'Sarabun',sans-serif;font-size:0.83rem;cursor:pointer;text-decoration:underline;}
+
+  /* HEADER */
+  .app-header{background:linear-gradient(135deg,var(--dark),var(--mid));color:white;padding:13px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;box-shadow:0 4px 20px rgba(27,58,107,0.3);position:sticky;top:0;z-index:100;}
+  .app-header h1{font-size:1.15rem;font-weight:700;}
+  .header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .date-badge{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:4px 11px;font-size:0.8rem;}
+  .sync-badge{display:flex;align-items:center;gap:6px;font-size:0.8rem;padding:5px 11px;border-radius:20px;font-weight:600;}
+  .sync-badge.ok{background:var(--green-bg);color:var(--green);}
+  .sync-badge.err{background:var(--red-bg);color:var(--red);}
+  .sync-badge.local{background:var(--yellow-bg);color:#92400E;}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  .btn-settings{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:8px;padding:4px 11px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:0.8rem;font-weight:600;}
+
+  /* SUMMARY */
+  .summary-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;padding:16px 20px 0;max-width:1200px;margin:0 auto;}
+  .card{background:white;border-radius:13px;padding:13px 15px;box-shadow:0 2px 12px rgba(0,0,0,0.07);border-top:4px solid var(--mid);}
+  .card.green{border-top-color:#10B981;}
+  .card.amber{border-top-color:var(--accent);}
+  .card.red{border-top-color:#EF4444;}
+  .card label{font-size:0.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;}
+  .card .val{font-size:1.3rem;font-weight:700;color:var(--dark);}
+  .card .val.green{color:var(--green);}
+  .card .val.red-col{color:var(--red);}
+  .card .val.amber{color:#92400E;}
+
+  /* TABS */
+  .tabs{max-width:1200px;margin:16px auto 0;padding:0 20px;display:flex;gap:4px;flex-wrap:wrap;}
+  .tab-btn{padding:7px 16px;border:none;border-radius:10px 10px 0 0;background:#CBD5E1;color:var(--muted);font-family:'Sarabun',sans-serif;font-size:0.86rem;font-weight:600;cursor:pointer;transition:all .2s;}
+  .tab-btn.active{background:white;color:var(--dark);box-shadow:0 -3px 10px rgba(0,0,0,.08);}
+
+  /* PANEL */
+  .main-panel{max-width:1200px;margin:0 auto 30px;padding:0 20px;}
+  .panel{background:white;border-radius:0 13px 13px 13px;box-shadow:0 4px 24px rgba(0,0,0,.08);padding:20px;display:none;}
+  .panel.active{display:block;}
+
+  /* FORM */
+  .form-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;}
+  .form-group{display:flex;flex-direction:column;gap:5px;}
+  .form-group label{font-size:0.78rem;font-weight:600;color:var(--muted);}
+  .form-group input,.form-group select{border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-family:'Sarabun',sans-serif;font-size:0.91rem;color:var(--text);background:white;}
+  .form-group input:focus,.form-group select:focus{outline:none;border-color:var(--mid);box-shadow:0 0 0 3px rgba(37,99,176,.1);}
+
+  /* CUSTOMER ROWS */
+  .customer-rows{border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px;}
+  .customer-row-header{display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.1fr 1.1fr auto;gap:8px;padding:9px 12px;background:var(--dark);color:white;font-size:0.78rem;font-weight:600;}
+  .customer-row{display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.1fr 1.1fr auto;gap:8px;padding:8px 12px;border-bottom:1px solid #F1F5F9;align-items:center;}
+  .customer-row:last-child{border-bottom:none;}
+  .customer-row:nth-child(even){background:#F8FAFC;}
+  .customer-row input{border:1.5px solid var(--border);border-radius:6px;padding:6px 9px;font-family:'Sarabun',sans-serif;font-size:0.88rem;width:100%;}
+  .customer-row input:focus{outline:none;border-color:var(--mid);}
+  .btn-remove{background:none;border:1.5px solid #FCA5A5;color:#DC2626;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:0.75rem;white-space:nowrap;}
+  .btn-remove:hover{background:var(--red-bg);}
+  .btn-add-row{display:flex;align-items:center;gap:6px;background:var(--light);color:var(--dark);border:1.5px dashed var(--mid);border-radius:8px;padding:8px 16px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:0.88rem;font-weight:600;width:100%;justify-content:center;transition:all .15s;}
+  .btn-add-row:hover{background:#BFDBFE;}
+
+  .btn-save{background:linear-gradient(135deg,var(--mid),var(--dark));color:white;border:none;border-radius:10px;padding:10px 24px;font-family:'Sarabun',sans-serif;font-size:0.93rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:opacity .2s;}
+  .btn-save:hover{opacity:.9;}
+  .btn-save:disabled{opacity:.5;cursor:not-allowed;}
+
+  /* TABLE */
+  .filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;}
+  .filter-bar input,.filter-bar select{border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-family:'Sarabun',sans-serif;font-size:0.84rem;}
+  .table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);}
+  table{width:100%;border-collapse:collapse;font-size:0.86rem;}
+  thead tr{background:var(--dark);}
+  thead th{color:white;padding:10px 11px;text-align:center;font-weight:600;font-size:0.78rem;white-space:nowrap;}
+  tbody tr{border-bottom:1px solid #F1F5F9;transition:background .1s;}
+  tbody tr:hover{background:#F8FAFC;}
+  tbody tr:last-child{border-bottom:none;}
+  tbody td{padding:9px 11px;text-align:center;vertical-align:middle;}
+  .badge{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:20px;font-size:0.75rem;font-weight:600;white-space:nowrap;}
+  .badge.paid{background:var(--green-bg);color:var(--green);}
+  .badge.unpaid{background:var(--red-bg);color:var(--red);}
+  .badge.late{background:var(--yellow-bg);color:#92400E;}
+  .empty-state{text-align:center;padding:40px;color:var(--muted);}
+
+  .export-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .btn-export{padding:7px 14px;border-radius:8px;border:none;font-family:'Sarabun',sans-serif;font-size:0.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
+  .btn-export.csv{background:var(--green-bg);color:var(--green);}
+  .btn-export.reload{background:var(--yellow-bg);color:#92400E;}
+
+  /* CUSTOMER MGMT */
+  .cust-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:9px;margin-top:12px;}
+  .cust-card{border:1.5px solid var(--border);border-radius:9px;padding:10px;display:flex;align-items:center;gap:9px;}
+  .cust-avatar{width:32px;height:32px;border-radius:50%;background:var(--light);color:var(--dark);font-weight:700;font-size:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .cust-name-input{border:none;background:transparent;font-family:'Sarabun',sans-serif;font-size:.9rem;font-weight:600;color:var(--text);width:100%;outline:none;}
+  .cust-name-input:focus{border-bottom:2px solid var(--mid);}
+  .btn-add-cust{display:flex;align-items:center;gap:6px;background:var(--light);color:var(--dark);border:1.5px dashed var(--mid);border-radius:8px;padding:7px 14px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:0.86rem;font-weight:600;margin-top:10px;}
+
+  @media(max-width:768px){
+    .summary-strip{grid-template-columns:repeat(2,1fr);}
+    .form-row{grid-template-columns:1fr 1fr;}
+    .customer-row-header,.customer-row{grid-template-columns:1.5fr 1fr 1fr auto;}
+    .customer-row .date-due{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div id="setupOverlay">
+  <div class="setup-box">
+    <h2>⚙️ ตั้งค่าเชื่อม Google Sheets</h2>
+    <p>ใช้ Apps Script URL เดียวกับระบบเงินส่งหน้าร้านได้เลยค่ะ หรือจะสร้างใหม่ก็ได้</p>
+    <div class="setup-input-row">
+      <input type="url" id="sheetUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
+      <button class="btn-primary" onclick="saveUrl()">เริ่มใช้งาน →</button>
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn-skip" onclick="skipSetup()">ข้ามก่อน (บันทึกในเครื่องอย่างเดียว)</button>
+      <span id="urlErr" style="color:var(--red);font-size:.8rem;display:none;margin-left:8px">⚠️ URL ไม่ถูกต้อง</span>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="app-header">
+  <h1>📋 ระบบติดตามลูกค้า</h1>
+  <div class="header-right">
+    <div id="syncBadge" class="sync-badge local"><div class="dot"></div><span>บันทึกในเครื่อง</span></div>
+    <div class="date-badge" id="liveClock"></div>
+    <button class="btn-settings" onclick="openSettings()">⚙️ ตั้งค่า</button>
+  </div>
+</header>
+
+<!-- SUMMARY -->
+<div class="summary-strip">
+  <div class="card"><label>รายการทั้งหมด</label><div class="val" id="sumTotal">0 รายการ</div></div>
+  <div class="card green"><label>จ่ายแล้ว</label><div class="val green" id="sumPaid">฿0.00</div></div>
+  <div class="card red"><label>ยังไม่จ่าย</label><div class="val red-col" id="sumUnpaid">฿0.00</div></div>
+  <div class="card amber"><label>จ่ายล่าช้า</label><div class="val amber" id="sumLate">0 ครั้ง</div></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs" style="margin-top:14px">
+  <button class="tab-btn active" onclick="switchTab('entry',this)">📝 บันทึกรายวัน</button>
+  <button class="tab-btn" onclick="switchTab('history',this)">📋 ประวัติรายการ</button>
+  <button class="tab-btn" onclick="switchTab('status',this)">🔍 สถานะลูกค้า</button>
+  <button class="tab-btn" onclick="switchTab('customers',this)">👥 ทะเบียนลูกค้า</button>
+</div>
+
+<div class="main-panel">
+
+  <!-- TAB บันทึก -->
+  <div class="panel active" id="tab-entry">
+    <div class="form-row">
+      <div class="form-group"><label>วันที่บันทึก</label><input type="date" id="f_date"></div>
+      <div class="form-group"><label>คนรถ</label>
+        <select id="f_driver"><option value="">-- เลือกคนรถ --</option></select>
+      </div>
+      <div class="form-group"><label>ผู้รับเงิน</label>
+        <select id="f_receiver">
+          <option value="">-- เลือก --</option>
+          <option>ยุ้ย</option><option>เป้</option><option>กิ๊บ</option><option>โกวทิพย์</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="customer-rows">
+      <div class="customer-row-header">
+        <div>ชื่อลูกค้า</div>
+        <div>วันที่ของยอด</div>
+        <div>ยอดเงิน (฿)</div>
+        <div>เงินเกิน/ขาด (฿)</div>
+        <div>วันที่จ่ายจริง</div>
+        <div></div>
+      </div>
+      <div id="customerRowsBody"></div>
+    </div>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">💡 เงินเกิน/ขาด: ถ้าตรงพอดีเว้นว่าง / เกินใส่ +100 / ขาดใส่ -100</p>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn-add-row" onclick="addCustomerRow()" style="width:auto;flex:1">➕ เพิ่มลูกค้า</button>
+      <button class="btn-save" id="btnSave" onclick="saveAll()">💾 บันทึกทั้งหมด</button>
+      <span id="savingInd" style="color:var(--muted);font-size:.83rem;display:none">⏳ กำลังบันทึก...</span>
+    </div>
+  </div>
+
+  <!-- TAB ประวัติ -->
+  <div class="panel" id="tab-history">
+    <div class="export-bar">
+      <button class="btn-export reload" onclick="loadFromSheet()">🔄 โหลดจาก Sheets</button>
+      <button class="btn-export csv" onclick="exportCSV()">⬇️ ดาวน์โหลด CSV</button>
+    </div>
+    <div class="filter-bar">
+      <input type="date" id="flt_date" onchange="renderHistory()" placeholder="กรองวันที่">
+      <select id="flt_driver" onchange="renderHistory()"><option value="">ทุกคนรถ</option></select>
+      <select id="flt_cust" onchange="renderHistory()"><option value="">ทุกลูกค้า</option></select>
+      <select id="flt_status" onchange="renderHistory()">
+        <option value="">ทุกสถานะ</option>
+        <option value="paid">✅ จ่ายแล้ว</option>
+        <option value="unpaid">❌ ยังไม่จ่าย</option>
+        <option value="late">⚠️ จ่ายล่าช้า</option>
+      </select>
+      <button class="btn-export reload" onclick="clearFilters()">✕ ล้าง</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>วันที่บันทึก</th><th>คนรถ</th><th>ลูกค้า</th>
+          <th>วันที่ของยอด</th><th>ยอดเงิน (฿)</th><th>เกิน/ขาด (฿)</th>
+          <th>วันที่จ่าย</th><th>สถานะ</th><th>จ่ายล่าช้า</th><th>ผู้รับเงิน</th><th></th>
+        </tr></thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyHistory" class="empty-state" style="display:none">
+      <p>ไม่มีรายการ หรือไม่ตรงเงื่อนไขที่เลือก</p>
+    </div>
+  </div>
+
+  <!-- TAB สถานะ -->
+  <div class="panel" id="tab-status">
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:12px">📊 สรุปสถานะการจ่ายเงินของลูกค้าแต่ละราย</p>
+    <div class="filter-bar">
+      <select id="flt_status2" onchange="renderStatus()">
+        <option value="">ทุกสถานะ</option>
+        <option value="unpaid">❌ ค้างจ่าย</option>
+        <option value="paid">✅ จ่ายหมดแล้ว</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>ชื่อลูกค้า</th><th>คนรถล่าสุด</th>
+          <th>ยอดค้างทั้งหมด (฿)</th><th>ยอดจ่ายแล้ว (฿)</th>
+          <th>จำนวนครั้งค้าง</th><th>จ่ายล่าช้าสูงสุด (วัน)</th><th>สถานะ</th>
+        </tr></thead>
+        <tbody id="statusBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB ทะเบียนลูกค้า -->
+  <div class="panel" id="tab-customers">
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:6px">💡 คลิกชื่อเพื่อแก้ไข กด Enter เพื่อบันทึก</p>
+    <div class="cust-grid" id="custGrid"></div>
+    <button class="btn-add-cust" onclick="addCustomer()">➕ เพิ่มลูกค้าใหม่</button>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let SHEET_URL = localStorage.getItem('cust_sheet_url') || 'https://script.google.com/macros/s/AKfycbygdmfem66drE5YUwWcv22bFLdFNGR1Re6lviQSb9tGC_UGihNa41i31gIGlTdN0x6Q/exec';
+let entries   = JSON.parse(localStorage.getItem('cust_entries') || '[]');
+let customers = JSON.parse(localStorage.getItem('cust_names') ||
+  JSON.stringify(['ลูกค้าที่ 1','ลูกค้าที่ 2','ลูกค้าที่ 3']));
+let drivers   = JSON.parse(localStorage.getItem('cash_drivers') ||
+  JSON.stringify(['โซ','จำเริญ','เจน','เพ้ง','อิง','เชียร','ตุ้ม','นาง','บิ๊ก','สมิง','ระ','คาน','เดช','วิน','โว','ริน','เอ๋']));
+
+// ============================================================
+// INIT
+// ============================================================
+document.getElementById('f_date').value = new Date().toISOString().split('T')[0];
+updateClock(); setInterval(updateClock, 30000);
+populateDriverSelect();
+updateSummaryCards();
+updateSyncBadge();
+
+if(SHEET_URL){
+  document.getElementById('setupOverlay').style.display='none';
+  loadCustomersFromSheet().then(()=>{
+    populateFilterSelects();
+    addCustomerRow();
+  });
+  loadFromSheet();
+} else {
+  populateFilterSelects();
+  addCustomerRow();
+}
+
+function updateClock(){
+  const now = new Date();
+  document.getElementById('liveClock').textContent =
+    now.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short',year:'numeric'}) +
+    ' ' + now.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ============================================================
+// SETUP
+// ============================================================
+function saveUrl(){
+  const url = document.getElementById('sheetUrlInput').value.trim();
+  if(!url.startsWith('https://script.google.com/macros/s/')){
+    document.getElementById('urlErr').style.display='inline'; return;
+  }
+  document.getElementById('urlErr').style.display='none';
+  SHEET_URL = url;
+  localStorage.setItem('cust_sheet_url', url);
+  document.getElementById('setupOverlay').style.display='none';
+  updateSyncBadge();
+  loadCustomersFromSheet().then(()=>{
+    populateFilterSelects();
+    refreshCustomerRowDropdowns();
+  });
+  loadFromSheet();
+  showToast('เชื่อม Google Sheets สำเร็จ ✅');
+}
+
+// ============================================================
+// LOAD CUSTOMERS FROM SHEET
+// ============================================================
+async function loadCustomersFromSheet(){
+  if(!SHEET_URL) return;
+  try {
+    const res = await fetch(SHEET_URL+'?action=getCustomerNames', {method:'GET', redirect:'follow'});
+    const data = await res.json();
+    if(Array.isArray(data) && data.length > 0){
+      customers = data;
+      localStorage.setItem('cust_names', JSON.stringify(customers));
+      populateFilterSelects();
+      refreshCustomerRowDropdowns();
+      if(document.getElementById('tab-customers').classList.contains('active')) renderCustomers();
+    }
+  } catch(err){ console.log('load customers error', err); }
+}
+function skipSetup(){ document.getElementById('setupOverlay').style.display='none'; }
+function openSettings(){
+  document.getElementById('sheetUrlInput').value = SHEET_URL;
+  document.getElementById('setupOverlay').style.display='flex';
+}
+function updateSyncBadge(){
+  const el = document.getElementById('syncBadge');
+  if(SHEET_URL){ el.className='sync-badge ok'; el.innerHTML='<div class="dot"></div><span>เชื่อม Sheets แล้ว ✅</span>'; }
+  else { el.className='sync-badge local'; el.innerHTML='<div class="dot"></div><span>บันทึกในเครื่อง</span>'; }
+}
+
+// ============================================================
+// DRIVER SELECT
+// ============================================================
+function populateDriverSelect(){
+  const sel = document.getElementById('f_driver');
+  const flt = document.getElementById('flt_driver');
+  const cur1 = sel.value, cur2 = flt.value;
+  while(sel.options.length>1) sel.remove(1);
+  while(flt.options.length>1) flt.remove(1);
+  drivers.forEach(d=>{
+    const o1=document.createElement('option'); o1.value=d; o1.textContent=d; sel.appendChild(o1);
+    const o2=document.createElement('option'); o2.value=d; o2.textContent=d; flt.appendChild(o2);
+  });
+  sel.value=cur1; flt.value=cur2;
+}
+
+function populateFilterSelects(){
+  const fc = document.getElementById('flt_cust');
+  while(fc.options.length>1) fc.remove(1);
+  customers.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; fc.appendChild(o); });
+}
+
+// ============================================================
+// CUSTOMER ROWS
+// ============================================================
+let rowId = 0;
+function addCustomerRow(custName='', dueDate='', amount='', diff='', paidDate=''){
+  customers = JSON.parse(localStorage.getItem('cust_names') || JSON.stringify(customers));
+  const id = ++rowId;
+  const div = document.createElement('div');
+  div.className = 'customer-row';
+  div.id = 'crow_'+id;
+  const custOpts = customers.map(c=>`<option value="${c}" ${c===custName?'selected':''}>${c}</option>`).join('');
+  div.innerHTML = `
+    <select class="cr-cust" style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%">
+      <option value="">-- เลือกลูกค้า --</option>${custOpts}
+    </select>
+    <input type="date" class="cr-due" value="${dueDate}">
+    <input type="number" class="cr-amt" placeholder="0.00" step="0.01" min="0" value="${amount}">
+    <input type="number" class="cr-diff" placeholder="0.00" step="0.01" value="${diff}"
+      style="color:${parseFloat(diff)<0?'var(--red)':parseFloat(diff)>0?'var(--green)':'inherit'}"
+      oninput="this.style.color=parseFloat(this.value)<0?'var(--red)':parseFloat(this.value)>0?'var(--green)':'inherit'">
+    <input type="date" class="cr-paid" value="${paidDate}" title="ถ้ายังไม่จ่าย เว้นว่างไว้">
+    <button class="btn-remove" onclick="removeRow(${id})">ลบ</button>
+  `;
+  document.getElementById('customerRowsBody').appendChild(div);
+}
+
+function removeRow(id){
+  const el = document.getElementById('crow_'+id);
+  if(el) el.remove();
+}
+
+// ============================================================
+// SAVE ALL
+// ============================================================
+async function saveAll(){
+  const date     = document.getElementById('f_date').value;
+  const driver   = document.getElementById('f_driver').value;
+  const receiver = document.getElementById('f_receiver').value;
+
+  if(!date || !driver){
+    alert('กรุณาเลือกวันที่และคนรถค่ะ');
+    return;
+  }
+
+  const rows = document.querySelectorAll('#customerRowsBody .customer-row');
+  const newEntries = [];
+
+  rows.forEach(row=>{
+    const cust   = row.querySelector('.cr-cust').value.trim();
+    const due    = row.querySelector('.cr-due').value;
+    const amt    = parseFloat(row.querySelector('.cr-amt').value);
+    const diff   = parseFloat(row.querySelector('.cr-diff').value) || 0;
+    const paid   = row.querySelector('.cr-paid').value;
+
+    if(!cust && !due && isNaN(amt)) return;
+    if(!cust){ alert('กรุณาเลือกชื่อลูกค้าค่ะ'); return; }
+    if(!due){ alert('กรุณาใส่วันที่ของยอดค่ะ'); return; }
+    if(isNaN(amt)||amt<=0){ alert('กรุณาใส่ยอดเงินค่ะ'); return; }
+
+    const lateDays = paid && due ? Math.max(0, Math.floor((new Date(paid)-new Date(due))/(1000*60*60*24))) : 0;
+    const status   = paid ? (lateDays > 0 ? 'late' : 'paid') : 'unpaid';
+    const diffLabel = diff > 0 ? '➕ เกิน' : diff < 0 ? '⚠️ ขาด' : '';
+
+    newEntries.push({ id:Date.now()+Math.random(), date, driver, receiver, customer:cust, dueDate:due, amount:amt, diff, paidDate:paid, status, lateDays, diffLabel });
+  });
+
+  if(newEntries.length === 0){
+    alert('กรุณากรอกข้อมูลลูกค้าอย่างน้อย 1 รายการค่ะ');
+    return;
+  }
+
+  entries = [...newEntries, ...entries];
+  localStorage.setItem('cust_entries', JSON.stringify(entries));
+  updateSummaryCards();
+
+  // Reset rows
+  document.getElementById('customerRowsBody').innerHTML = '';
+  rowId = 0;
+  addCustomerRow();
+
+  if(SHEET_URL){
+    const btn = document.getElementById('btnSave');
+    const ind = document.getElementById('savingInd');
+    btn.disabled=true; ind.style.display='inline';
+    try {
+      for(const e of newEntries){
+        await fetch(SHEET_URL, {
+          method:'POST', mode:'no-cors',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            action:'saveCustomer',
+            date:e.date, driver:e.driver, receiver:e.receiver,
+            customer:e.customer, dueDate:e.dueDate, amount:e.amount,
+            diff:e.diff, diffLabel:e.diffLabel,
+            paidDate:e.paidDate||'', status:statusThai(e.status),
+            lateDays:e.lateDays
+          }),
+          redirect:'follow'
+        });
+      }
+      showToast(`บันทึก ${newEntries.length} รายการลง Sheets สำเร็จ ✅`);
+    } catch(err){
+      showToast('บันทึกในเครื่องแล้ว (Sheets ไม่ได้)');
+    } finally {
+      btn.disabled=false; ind.style.display='none';
+    }
+  } else {
+    showToast(`บันทึก ${newEntries.length} รายการสำเร็จ ✅`);
+  }
+}
+
+function statusThai(s){
+  if(s==='paid') return '✅ จ่ายแล้ว';
+  if(s==='late') return '⚠️ จ่ายล่าช้า';
+  return '❌ ยังไม่จ่าย';
+}
+
+// ============================================================
+// LOAD FROM SHEET
+// ============================================================
+async function loadFromSheet(){
+  if(!SHEET_URL) return;
+  const badge = document.getElementById('syncBadge');
+  badge.innerHTML='<div class="dot"></div><span>กำลังโหลด...</span>';
+  try {
+    const res = await fetch(SHEET_URL+'?action=getCustomers', {method:'GET', redirect:'follow'});
+    const data = await res.json();
+    if(!Array.isArray(data)) throw new Error('bad');
+
+    entries = data.map((row,i)=>({
+      id: i+1,
+      date:     String(row['วันที่บันทึก']||'').split('T')[0]||String(row['วันที่บันทึก']||''),
+      driver:   String(row['คนรถ']||''),
+      receiver: String(row['ผู้รับเงิน']||''),
+      customer: String(row['ลูกค้า']||''),
+      dueDate:  String(row['วันที่ของยอด']||'').split('T')[0]||String(row['วันที่ของยอด']||''),
+      amount:   parseFloat(row['ยอดเงิน'])||0,
+      paidDate: String(row['วันที่จ่ายจริง']||'').split('T')[0]||'',
+      status:   mapStatus(String(row['สถานะ']||'')),
+      lateDays: parseInt(row['จ่ายล่าช้า(วัน)'])||0,
+      fromSheet:true
+    })).reverse();
+
+    localStorage.setItem('cust_entries', JSON.stringify(entries));
+    updateSummaryCards();
+    badge.className='sync-badge ok';
+    badge.innerHTML='<div class="dot"></div><span>อัปเดตแล้ว ✅</span>';
+    if(document.getElementById('tab-history').classList.contains('active')) renderHistory();
+    if(document.getElementById('tab-status').classList.contains('active')) renderStatus();
+  } catch(err){
+    badge.className='sync-badge err';
+    badge.innerHTML='<div class="dot"></div><span>โหลดไม่ได้ ⚠️</span>';
+  }
+}
+
+function mapStatus(s){
+  if(s.includes('ล่าช้า')||s==='late') return 'late';
+  if(s.includes('จ่ายแล้ว')||s==='paid') return 'paid';
+  return 'unpaid';
+}
+
+// ============================================================
+// SUMMARY CARDS
+// ============================================================
+function updateSummaryCards(){
+  const total  = entries.length;
+  const paid   = entries.filter(e=>e.status==='paid'||e.status==='late').reduce((s,e)=>s+e.amount,0);
+  const unpaid = entries.filter(e=>e.status==='unpaid').reduce((s,e)=>s+e.amount,0);
+  const late   = entries.filter(e=>e.status==='late').length;
+  document.getElementById('sumTotal').textContent = total + ' รายการ';
+  document.getElementById('sumPaid').textContent = '฿'+fmt(paid);
+  document.getElementById('sumUnpaid').textContent = '฿'+fmt(unpaid);
+  document.getElementById('sumLate').textContent = late + ' ครั้ง';
+}
+
+// ============================================================
+// TABS
+// ============================================================
+function switchTab(id, btn){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='history') renderHistory();
+  if(id==='status') renderStatus();
+  if(id==='customers') renderCustomers();
+}
+
+// ============================================================
+// HISTORY
+// ============================================================
+function renderHistory(){
+  const fd  = document.getElementById('flt_date').value;
+  const fdr = document.getElementById('flt_driver').value;
+  const fc  = document.getElementById('flt_cust').value;
+  const fst = document.getElementById('flt_status').value;
+
+  let filtered = entries.filter(e=>{
+    if(fd && e.date!==fd) return false;
+    if(fdr && e.driver!==fdr) return false;
+    if(fc && e.customer!==fc) return false;
+    if(fst && e.status!==fst) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('historyBody');
+  tbody.innerHTML='';
+  document.getElementById('emptyHistory').style.display = filtered.length?'none':'block';
+
+  const sm = {
+    paid:'<span class="badge paid">✅ จ่ายแล้ว</span>',
+    late:'<span class="badge late">⚠️ จ่ายล่าช้า</span>',
+    unpaid:'<span class="badge unpaid">❌ ยังไม่จ่าย</span>'
+  };
+
+  filtered.forEach((e,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML=`
+      <td style="color:var(--muted)">${i+1}</td>
+      <td>${fmtDate(e.date)}</td>
+      <td style="font-weight:600">${e.driver}</td>
+      <td style="font-weight:600;text-align:left">${e.customer}</td>
+      <td>${fmtDate(e.dueDate)}</td>
+      <td style="color:var(--dark);font-weight:600">${fmt(e.amount)}</td>
+      <td style="font-weight:600;color:${e.diff>0?'var(--green)':e.diff<0?'var(--red)':'var(--muted)'}">
+        ${e.diff>0?'+'+fmt(e.diff):e.diff<0?fmt(e.diff):'—'}
+      </td>
+      <td>${e.paidDate?fmtDate(e.paidDate):'<span style="color:var(--red)">ยังไม่จ่าย</span>'}</td>
+      <td>${sm[e.status]||''}</td>
+      <td>${e.lateDays>0?'<span style="color:#92400E;font-weight:600">'+e.lateDays+' วัน</span>':'—'}</td>
+      <td>${e.receiver||'—'}</td>
+      <td>${e.fromSheet?'<span style="color:var(--muted);font-size:.72rem">Sheets</span>':'<button class="btn-remove" onclick="deleteEntry('+JSON.stringify(e.id)+')">ลบ</button>'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function deleteEntry(id){
+  if(!confirm('ยืนยันลบรายการนี้?')) return;
+  entries = entries.filter(e=>e.id!==id);
+  localStorage.setItem('cust_entries', JSON.stringify(entries));
+  updateSummaryCards(); renderHistory();
+}
+
+function clearFilters(){
+  ['flt_date','flt_driver','flt_cust','flt_status'].forEach(id=>document.getElementById(id).value='');
+  renderHistory();
+}
+
+// ============================================================
+// STATUS PER CUSTOMER
+// ============================================================
+function renderStatus(){
+  const fst = document.getElementById('flt_status2').value;
+  const tbody = document.getElementById('statusBody');
+  tbody.innerHTML='';
+
+  const custMap = {};
+  entries.forEach(e=>{
+    if(!custMap[e.customer]) custMap[e.customer] = {driver:'', total:0, paid:0, unpaidCount:0, maxLate:0};
+    const c = custMap[e.customer];
+    c.driver = e.driver;
+    c.total += e.amount;
+    if(e.status==='paid'||e.status==='late') c.paid += e.amount;
+    if(e.status==='unpaid') c.unpaidCount++;
+    if(e.lateDays > c.maxLate) c.maxLate = e.lateDays;
+  });
+
+  Object.entries(custMap).forEach(([name, c], i)=>{
+    const hasUnpaid = c.unpaidCount > 0;
+    if(fst==='unpaid' && !hasUnpaid) return;
+    if(fst==='paid' && hasUnpaid) return;
+
+    const sh = hasUnpaid
+      ? '<span class="badge unpaid">❌ ค้างอยู่</span>'
+      : '<span class="badge paid">✅ จ่ายหมดแล้ว</span>';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML=`
+      <td style="color:var(--muted)">${i+1}</td>
+      <td style="font-weight:600;text-align:left">${name}</td>
+      <td>${c.driver||'—'}</td>
+      <td style="color:var(--dark);font-weight:600">${fmt(c.total)}</td>
+      <td style="color:var(--green);font-weight:600">${fmt(c.paid)}</td>
+      <td style="color:${c.unpaidCount>0?'var(--red)':'var(--muted)'};font-weight:600">${c.unpaidCount} ครั้ง</td>
+      <td style="color:${c.maxLate>0?'#92400E':'var(--muted)'};font-weight:600">${c.maxLate>0?c.maxLate+' วัน':'—'}</td>
+      <td>${sh}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ============================================================
+// CUSTOMERS MGMT
+// ============================================================
+function renderCustomers(){
+  const grid = document.getElementById('custGrid');
+  grid.innerHTML='';
+  customers.forEach((c,i)=>{
+    const card = document.createElement('div');
+    card.className='cust-card';
+    card.innerHTML=`
+      <div class="cust-avatar">${i+1}</div>
+      <input class="cust-name-input" value="${c}"
+        onchange="updateCustomer(${i},this.value)"
+        onkeydown="if(event.key==='Enter')this.blur()">
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function updateCustomer(i, val){
+  customers[i] = val.trim()||customers[i];
+  localStorage.setItem('cust_names', JSON.stringify(customers));
+  saveCustomersToSheet();
+  populateFilterSelects();
+  refreshCustomerRowDropdowns();
+  showToast('บันทึกชื่อลูกค้าแล้ว ✅');
+}
+
+function addCustomer(){
+  customers.push(`ลูกค้าที่ ${customers.length+1}`);
+  localStorage.setItem('cust_names', JSON.stringify(customers));
+  saveCustomersToSheet();
+  populateFilterSelects();
+  refreshCustomerRowDropdowns();
+  renderCustomers();
+}
+
+function saveCustomersToSheet(){
+  if(!SHEET_URL) return;
+  fetch(SHEET_URL, {
+    method:'POST', mode:'no-cors',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'saveCustomerNames', customers}),
+    redirect:'follow'
+  });
+}
+
+function refreshCustomerRowDropdowns(){
+  document.querySelectorAll('#customerRowsBody .cr-cust').forEach(sel=>{
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">-- เลือกลูกค้า --</option>' +
+      customers.map(c=>`<option value="${c}" ${c===cur?'selected':''}>${c}</option>`).join('');
+  });
+}
+
+// ============================================================
+// CSV
+// ============================================================
+function exportCSV(){
+  const hdr=['วันที่บันทึก','คนรถ','ผู้รับเงิน','ลูกค้า','วันที่ของยอด','ยอดเงิน','วันที่จ่าย','สถานะ','จ่ายล่าช้า(วัน)'];
+  const rows=entries.map(e=>[fmtDate(e.date),e.driver,e.receiver,e.customer,fmtDate(e.dueDate),e.amount,e.paidDate?fmtDate(e.paidDate):'',statusThai(e.status),e.lateDays]);
+  const csv=[hdr,...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`ลูกค้า_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function fmt(n){ return parseFloat(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtDate(d){
+  if(!d) return '—';
+  const p=String(d).split('-');
+  if(p.length===3) return `${p[2]}/${p[1]}/${parseInt(p[0])+543}`;
+  return d;
+}
+function showToast(msg){
+  const t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:20px;right:20px;background:#1B3A6B;color:white;padding:10px 18px;border-radius:10px;font-family:Sarabun;font-weight:600;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);font-size:.88rem';
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),2800);
+}
+</script>
+</body>
+</html>
