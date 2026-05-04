@@ -73,6 +73,14 @@
   .customer-rows{border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px;}
   .customer-row-header{display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.1fr 1.1fr auto;gap:8px;padding:9px 12px;background:var(--dark);color:white;font-size:0.78rem;font-weight:600;}
   .customer-row{display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.1fr 1.1fr auto;gap:8px;padding:8px 12px;border-bottom:1px solid #F1F5F9;align-items:center;}
+  @media(max-width:600px){
+    .customer-row-header{grid-template-columns:1fr 1fr;font-size:0.72rem;gap:4px;}
+    .customer-row{grid-template-columns:1fr 1fr;gap:6px;padding:10px 10px;}
+    .customer-row select,.customer-row input{font-size:.82rem;}
+    .btn-remove{grid-column:1/-1;width:100%;margin-top:4px;}
+    .summary-strip{grid-template-columns:repeat(2,1fr);}
+    .form-row{grid-template-columns:1fr;}
+  }
   .customer-row:last-child{border-bottom:none;}
   .customer-row:nth-child(even){background:#F8FAFC;}
   .customer-row input{border:1.5px solid var(--border);border-radius:6px;padding:6px 9px;font-family:'Sarabun',sans-serif;font-size:0.88rem;width:100%;}
@@ -342,7 +350,7 @@
 // ============================================================
 // STATE
 // ============================================================
-let SHEET_URL = localStorage.getItem('cust_sheet_url') || 'https://script.google.com/macros/s/AKfycbygdmfem66drE5YUwWcv22bFLdFNGR1Re6lviQSb9tGC_UGihNa41i31gIGlTdN0x6Q/exec';
+let SHEET_URL = localStorage.getItem('cust_sheet_url') || 'https://script.google.com/macros/s/AKfycbw681vEBKWfSh2Gu2sX0wPF0S-pUeRkFyQ79qUksEHw_vK3dThO6ujMqBQmNcNAFl5z/exec';
 let entries   = JSON.parse(localStorage.getItem('cust_entries') || '[]');
 let customers = JSON.parse(localStorage.getItem('cust_names') ||
   JSON.stringify(['ลูกค้าที่ 1','ลูกค้าที่ 2','ลูกค้าที่ 3']));
@@ -476,13 +484,25 @@ function getFilteredCustomers(){
   const driver = document.getElementById('f_driver').value;
   if(!driver) return customers;
   if(SUPER_DRIVERS.includes(driver)) return customers;
+
+  // โหลด map ใหม่จาก localStorage เผื่อยังไม่ได้โหลด
+  if(Object.keys(customerDriverMap).length === 0){
+    customerDriverMap = JSON.parse(localStorage.getItem('cust_driver_map') || '{}');
+  }
+
+  // ถ้า map ยังว่างอยู่ = ยังไม่มีข้อมูล แสดงลูกค้าทั้งหมด
+  if(Object.keys(customerDriverMap).length === 0) return customers;
+
   if(driver === 'มาเอาเองที่โรงงาน') return customers.filter(c=>{
     const drvs = customerDriverMap[c]||[];
     return drvs.includes('มาเอาเองที่โรงงาน');
   });
+
   return customers.filter(c=>{
     const drvs = customerDriverMap[c]||[];
-    return drvs.length===0 || drvs.includes(driver);
+    // ถ้าลูกค้าไม่มีคนขับผูกไว้ = แสดงให้ทุกคน
+    if(drvs.length === 0) return true;
+    return drvs.includes(driver);
   });
 }
 
