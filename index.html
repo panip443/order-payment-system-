@@ -163,8 +163,10 @@
 <!-- TABS -->
 <div class="tabs" style="margin-top:14px">
   <button class="tab-btn active" onclick="switchTab('entry',this)">📝 บันทึกรายวัน</button>
+  <button class="tab-btn" onclick="switchTab('order',this)">🧊 ออเดอร์น้ำแข็ง</button>
   <button class="tab-btn" onclick="switchTab('history',this)">📋 ประวัติรายการ</button>
   <button class="tab-btn" onclick="switchTab('status',this)">🔍 สถานะลูกค้า</button>
+  <button class="tab-btn" onclick="switchTab('prices',this)">💲 ราคาน้ำแข็ง</button>
   <button class="tab-btn" onclick="switchTab('customers',this)">👥 ทะเบียนลูกค้า</button>
 </div>
 
@@ -267,6 +269,73 @@
     <button class="btn-add-cust" onclick="addCustomer()">➕ เพิ่มลูกค้าใหม่</button>
   </div>
 
+  <!-- TAB ออเดอร์น้ำแข็ง -->
+  <div class="panel" id="tab-order">
+    <div class="form-row">
+      <div class="form-group"><label>วันที่</label><input type="date" id="o_date"></div>
+      <div class="form-group"><label>ลูกค้า</label>
+        <select id="o_cust" onchange="loadIcePrices()"><option value="">-- เลือกลูกค้า --</option></select>
+      </div>
+      <div class="form-group"><label>คนขับ</label>
+        <select id="o_driver"><option value="">-- เลือกคนขับ --</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>รอบ</label>
+        <select id="o_round">
+          <option>รอบเช้า</option><option>รอบบ่าย</option><option>รอบเย็น</option><option>รอบพิเศษ</option>
+        </select>
+      </div>
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input type="text" id="o_note" placeholder="เพิ่ม/ลด ออเดอร์ หรืออื่นๆ">
+      </div>
+    </div>
+
+    <!-- ตารางออเดอร์ -->
+    <div class="customer-rows" style="margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:9px 12px;background:var(--dark);color:white;font-size:.78rem;font-weight:600;border-radius:10px 10px 0 0">
+        <div>ประเภทน้ำแข็ง</div>
+        <div>ราคา/หน่วย (฿)</div>
+        <div>จำนวน</div>
+        <div>ยอด (฿)</div>
+      </div>
+      <div id="iceOrderRows"></div>
+    </div>
+
+    <div style="background:var(--light);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-weight:700;color:var(--dark);font-size:1rem">ยอดรวมทั้งหมด</span>
+      <span id="iceTotalDisplay" style="font-size:1.4rem;font-weight:700;color:var(--dark)">฿0.00</span>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-save" onclick="saveIceOrder()">💾 บันทึกออเดอร์</button>
+      <button class="btn-save" style="background:linear-gradient(135deg,#10B981,#065F46)" onclick="saveIceOrderAndLink()">💾 บันทึก + โยงไปยอดค้างจ่าย</button>
+    </div>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:10px">💡 "บันทึก + โยง" จะสร้างรายการค้างจ่ายในแท็บบันทึกรายวันอัตโนมัติค่ะ</p>
+  </div>
+
+  <!-- TAB ราคาน้ำแข็ง -->
+  <div class="panel" id="tab-prices">
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn-export reload" onclick="loadPricesFromSheet()">🔄 โหลดราคาจาก Sheets</button>
+      <button class="btn-export csv" onclick="exportPricesCSV()">⬇️ ดาวน์โหลด CSV</button>
+    </div>
+    <p style="color:var(--muted);font-size:.83rem;margin-bottom:12px">💡 แก้ราคาได้โดยตรงในตาราง กด Enter เพื่อบันทึกขึ้น Sheets</p>
+    <div class="table-wrap">
+      <table id="pricesTable">
+        <thead><tr>
+          <th>ลูกค้า</th>
+          <th>หลอดใหญ่ (฿)</th>
+          <th>หลอดจิ๋ว (฿)</th>
+          <th>ป่น (฿)</th>
+          <th>มัด (฿)</th>
+          <th>ก้อน (฿)</th>
+        </tr></thead>
+        <tbody id="pricesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -283,6 +352,8 @@ let drivers   = JSON.parse(localStorage.getItem('cash_drivers') ||
 
 // คนขับเสริมที่เห็นลูกค้าทุกคน
 const SUPER_DRIVERS = ['วิน','ริน'];
+const ICE_TYPES = ['หลอดใหญ่','หลอดจิ๋ว','ป่น','มัด','ก้อน'];
+let icePrices = JSON.parse(localStorage.getItem('ice_prices') || '{}'); // {ชื่อลูกค้า: {หลอดใหญ่:25, หลอดจิ๋ว:15, ...}}
 
 // ============================================================
 // INIT
@@ -297,13 +368,19 @@ if(SHEET_URL){
   document.getElementById('setupOverlay').style.display='none';
   loadCustomersFromSheet().then(()=>{
     populateFilterSelects();
+    populateOrderSelects();
     addCustomerRow();
   });
   loadFromSheet();
+  loadPricesFromSheet();
 } else {
   populateFilterSelects();
+  populateOrderSelects();
   addCustomerRow();
 }
+
+// Set default date for order tab
+document.getElementById('o_date').value = new Date().toISOString().split('T')[0];
 
 function updateClock(){
   const now = new Date();
@@ -592,6 +669,8 @@ function switchTab(id, btn){
   if(id==='history') renderHistory();
   if(id==='status') renderStatus();
   if(id==='customers') renderCustomers();
+  if(id==='order') { populateOrderSelects(); renderIceOrderRows(); }
+  if(id==='prices') renderPricesTable();
 }
 
 // ============================================================
@@ -765,6 +844,246 @@ function exportCSV(){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download=`ลูกค้า_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ============================================================
+// ICE ORDER — POPULATE SELECTS
+// ============================================================
+function populateOrderSelects(){
+  const custSel = document.getElementById('o_cust');
+  const drvSel = document.getElementById('o_driver');
+  if(!custSel || !drvSel) return;
+  const curC = custSel.value, curD = drvSel.value;
+  while(custSel.options.length>1) custSel.remove(1);
+  while(drvSel.options.length>1) drvSel.remove(1);
+  customers.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; custSel.appendChild(o); });
+  drivers.forEach(d=>{ const o=document.createElement('option'); o.value=d; o.textContent=d; drvSel.appendChild(o); });
+  custSel.value=curC; drvSel.value=curD;
+}
+
+// ============================================================
+// ICE ORDER — RENDER ROWS (ราคา × จำนวน = ยอด)
+// ============================================================
+function renderIceOrderRows(){
+  const cust = document.getElementById('o_cust').value;
+  const prices = icePrices[cust] || {};
+  const tbody = document.getElementById('iceOrderRows');
+  tbody.innerHTML='';
+
+  ICE_TYPES.forEach(type=>{
+    const price = prices[type] || 0;
+    const row = document.createElement('div');
+    row.style.cssText='display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:8px 12px;border-bottom:1px solid #F1F5F9;align-items:center';
+    row.innerHTML=`
+      <div style="font-weight:600;color:var(--dark)">${type}</div>
+      <input type="number" class="ice-price" data-type="${type}" value="${price}" min="0" step="0.01"
+        style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%"
+        oninput="calcIceTotal()">
+      <input type="number" class="ice-qty" data-type="${type}" value="0" min="0"
+        style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%"
+        oninput="calcIceTotal()">
+      <div class="ice-subtotal" data-type="${type}" style="font-weight:700;color:var(--dark);text-align:center">—</div>
+    `;
+    tbody.appendChild(row);
+  });
+  calcIceTotal();
+}
+
+function calcIceTotal(){
+  let total = 0;
+  ICE_TYPES.forEach(type=>{
+    const price = parseFloat(document.querySelector(`.ice-price[data-type="${type}"]`)?.value)||0;
+    const qty   = parseFloat(document.querySelector(`.ice-qty[data-type="${type}"]`)?.value)||0;
+    const sub   = price * qty;
+    const el    = document.querySelector(`.ice-subtotal[data-type="${type}"]`);
+    if(el) el.textContent = sub > 0 ? fmt(sub)+' ฿' : '—';
+    total += sub;
+  });
+  document.getElementById('iceTotalDisplay').textContent = '฿'+fmt(total);
+}
+
+function loadIcePrices(){
+  renderIceOrderRows();
+}
+
+// ============================================================
+// ICE ORDER — SAVE
+// ============================================================
+async function saveIceOrder(){
+  const date   = document.getElementById('o_date').value;
+  const cust   = document.getElementById('o_cust').value;
+  const driver = document.getElementById('o_driver').value;
+  const round  = document.getElementById('o_round').value;
+  const note   = document.getElementById('o_note').value;
+  if(!date||!cust){ alert('กรุณาเลือกวันที่และลูกค้าค่ะ'); return; }
+
+  const items = {};
+  let total = 0;
+  ICE_TYPES.forEach(type=>{
+    const price = parseFloat(document.querySelector(`.ice-price[data-type="${type}"]`)?.value)||0;
+    const qty   = parseFloat(document.querySelector(`.ice-qty[data-type="${type}"]`)?.value)||0;
+    if(qty>0){ items[type]={price,qty,sub:price*qty}; total+=price*qty; }
+    // บันทึกราคาปัจจุบันไว้ใน icePrices
+    if(!icePrices[cust]) icePrices[cust]={};
+    icePrices[cust][type] = price;
+  });
+
+  if(total===0){ alert('กรุณากรอกจำนวนน้ำแข็งอย่างน้อย 1 รายการค่ะ'); return; }
+
+  localStorage.setItem('ice_prices', JSON.stringify(icePrices));
+
+  // Save to Sheets
+  if(SHEET_URL){
+    await fetch(SHEET_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ action:'saveIceOrder', date, customer:cust, driver, round, note,
+        items:JSON.stringify(items), total }),
+      redirect:'follow'
+    });
+    // Save updated prices
+    await fetch(SHEET_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ action:'saveIcePrices', customer:cust, prices:icePrices[cust] }),
+      redirect:'follow'
+    });
+  }
+
+  showToast(`บันทึกออเดอร์ ${cust} ยอด ฿${fmt(total)} สำเร็จ ✅`);
+  resetIceOrder();
+}
+
+async function saveIceOrderAndLink(){
+  const date   = document.getElementById('o_date').value;
+  const cust   = document.getElementById('o_cust').value;
+  const driver = document.getElementById('o_driver').value;
+  const round  = document.getElementById('o_round').value;
+  const note   = document.getElementById('o_note').value;
+  if(!date||!cust){ alert('กรุณาเลือกวันที่และลูกค้าค่ะ'); return; }
+
+  let total = 0;
+  ICE_TYPES.forEach(type=>{
+    const price = parseFloat(document.querySelector(`.ice-price[data-type="${type}"]`)?.value)||0;
+    const qty   = parseFloat(document.querySelector(`.ice-qty[data-type="${type}"]`)?.value)||0;
+    total += price*qty;
+    if(!icePrices[cust]) icePrices[cust]={};
+    icePrices[cust][type] = price;
+  });
+  if(total===0){ alert('กรุณากรอกจำนวนน้ำแข็งอย่างน้อย 1 รายการค่ะ'); return; }
+  localStorage.setItem('ice_prices', JSON.stringify(icePrices));
+
+  // สร้างรายการค้างจ่ายในระบบติดตาม
+  const entry = { id:Date.now()+Math.random(), date, driver, receiver:'', customer:cust,
+    dueDate:date, amount:total, diff:0, paidDate:'', status:'unpaid', lateDays:0,
+    note:`ออเดอร์น้ำแข็ง ${round}${note?' - '+note:''}` };
+  entries.unshift(entry);
+  localStorage.setItem('cust_entries', JSON.stringify(entries));
+  updateSummaryCards();
+
+  if(SHEET_URL){
+    const items = {};
+    ICE_TYPES.forEach(type=>{
+      const price = parseFloat(document.querySelector(`.ice-price[data-type="${type}"]`)?.value)||0;
+      const qty   = parseFloat(document.querySelector(`.ice-qty[data-type="${type}"]`)?.value)||0;
+      if(qty>0) items[type]={price,qty,sub:price*qty};
+    });
+    await fetch(SHEET_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ action:'saveIceOrder', date, customer:cust, driver, round, note,
+        items:JSON.stringify(items), total }),
+      redirect:'follow'
+    });
+    await fetch(SHEET_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ action:'saveCustomer', date, driver, receiver:'', customer:cust,
+        dueDate:date, amount:total, diff:0, paidDate:'', status:'❌ ยังไม่จ่าย', lateDays:0 }),
+      redirect:'follow'
+    });
+    await fetch(SHEET_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ action:'saveIcePrices', customer:cust, prices:icePrices[cust] }),
+      redirect:'follow'
+    });
+  }
+
+  showToast(`บันทึกออเดอร์ + โยงยอดค้างจ่าย ฿${fmt(total)} สำเร็จ ✅`);
+  resetIceOrder();
+}
+
+function resetIceOrder(){
+  document.getElementById('o_cust').value='';
+  document.getElementById('o_note').value='';
+  document.getElementById('iceOrderRows').innerHTML='';
+  document.getElementById('iceTotalDisplay').textContent='฿0.00';
+}
+
+// ============================================================
+// ICE PRICES — LOAD & RENDER
+// ============================================================
+async function loadPricesFromSheet(){
+  if(!SHEET_URL) return;
+  try {
+    const res = await fetch(SHEET_URL+'?action=getIcePrices', {method:'GET', redirect:'follow'});
+    const data = await res.json();
+    if(typeof data === 'object' && data !== null){
+      icePrices = data;
+      localStorage.setItem('ice_prices', JSON.stringify(icePrices));
+      if(document.getElementById('tab-prices').classList.contains('active')) renderPricesTable();
+    }
+  } catch(err){ console.log('load prices error', err); }
+}
+
+function renderPricesTable(){
+  const tbody = document.getElementById('pricesBody');
+  tbody.innerHTML='';
+  customers.forEach((c,i)=>{
+    const prices = icePrices[c]||{};
+    const rf = i%2===0?'#fff':'#F8FAFC';
+    const tr = document.createElement('tr');
+    tr.style.background=rf;
+    const cells = ICE_TYPES.map(type=>`
+      <td>
+        <input type="number" value="${prices[type]||0}" min="0" step="0.01"
+          style="border:1.5px solid var(--border);border-radius:6px;padding:5px 8px;width:80px;font-family:'Sarabun',sans-serif;font-size:.86rem;text-align:center"
+          onchange="updatePrice('${c}','${type}',this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()">
+      </td>`).join('');
+    tr.innerHTML=`<td style="font-weight:600;text-align:left;padding:8px 12px">${c}</td>${cells}`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function updatePrice(customer, type, val){
+  if(!icePrices[customer]) icePrices[customer]={};
+  icePrices[customer][type] = parseFloat(val)||0;
+  localStorage.setItem('ice_prices', JSON.stringify(icePrices));
+  if(SHEET_URL){
+    await fetch(SHEET_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ action:'saveIcePrices', customer, prices:icePrices[customer] }),
+      redirect:'follow'
+    });
+  }
+  showToast(`บันทึกราคา ${customer} - ${type} แล้ว ✅`);
+}
+
+function exportPricesCSV(){
+  const hdr=['ลูกค้า',...ICE_TYPES];
+  const rows=customers.map(c=>{
+    const p=icePrices[c]||{};
+    return [c,...ICE_TYPES.map(t=>p[t]||0)];
+  });
+  const csv=[hdr,...rows].map(r=>r.join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`ราคาน้ำแข็ง_${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
 }
 
