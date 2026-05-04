@@ -173,6 +173,7 @@
   <button class="tab-btn active" onclick="switchTab('entry',this)">📝 บันทึกรายวัน</button>
   <button class="tab-btn" onclick="switchTab('order',this)">🧊 ออเดอร์น้ำแข็ง</button>
   <button class="tab-btn" onclick="switchTab('verify',this)">📊 ตรวจสอบยอด</button>
+  <button class="tab-btn" onclick="switchTab('expense',this)">💸 รายจ่ายประจำวัน</button>
   <button class="tab-btn" onclick="switchTab('history',this)">📋 ประวัติรายการ</button>
   <button class="tab-btn" onclick="switchTab('status',this)">🔍 สถานะลูกค้า</button>
   <button class="tab-btn" onclick="switchTab('prices',this)">💲 ราคาน้ำแข็ง</button>
@@ -317,6 +318,66 @@
     </div>
   </div>
 
+  <!-- TAB รายจ่ายประจำวัน -->
+  <div class="panel" id="tab-expense">
+    <div class="form-row" style="margin-bottom:16px">
+      <div class="form-group"><label>วันที่</label><input type="date" id="exp_date"></div>
+      <div class="form-group"><label>รอบ</label>
+        <select id="exp_round">
+          <option>รอบเช้า</option><option>รอบบ่าย</option><option>รอบเย็น</option><option>อื่นๆ</option>
+        </select>
+      </div>
+      <div class="form-group"><label>ผู้บันทึก</label>
+        <select id="exp_recorder">
+          <option value="">-- เลือก --</option>
+          <option>ยุ้ย</option><option>เป้</option><option>กิ๊บ</option><option>โกวทิพย์</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="customer-rows" style="margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1.5fr auto;gap:8px;padding:9px 12px;background:var(--dark);color:white;font-size:.78rem;font-weight:600;border-radius:10px 10px 0 0">
+        <div>ประเภทรายจ่าย</div>
+        <div>ชื่อผู้รับ</div>
+        <div>จำนวนเงิน (฿)</div>
+        <div>หมายเหตุ</div>
+        <div></div>
+      </div>
+      <div id="expenseRows"></div>
+    </div>
+
+    <div style="background:var(--red-bg);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-weight:700;color:var(--red);font-size:1rem">รายจ่ายรวมทั้งหมด</span>
+      <span id="expTotalDisplay" style="font-size:1.4rem;font-weight:700;color:var(--red)">฿0.00</span>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+      <button class="btn-add-row" onclick="addExpenseRow()" style="width:auto;flex:1">➕ เพิ่มรายจ่าย</button>
+      <button class="btn-save" onclick="saveExpenses()">💾 บันทึกรายจ่าย</button>
+    </div>
+
+    <!-- ประวัติรายจ่าย -->
+    <div style="font-weight:700;color:var(--dark);margin-bottom:10px;font-size:.95rem">📋 ประวัติรายจ่าย</div>
+    <div class="filter-bar">
+      <input type="date" id="exp_filter_date" onchange="renderExpenseHistory()">
+      <button class="btn-export reload" onclick="renderExpenseHistory()">🔄 โหลด</button>
+      <button class="btn-export csv" onclick="exportExpenseCSV()">⬇️ CSV</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>วันที่</th><th>รอบ</th><th>ประเภท</th>
+          <th>ชื่อผู้รับ</th><th>จำนวน (฿)</th><th>หมายเหตุ</th><th>ผู้บันทึก</th>
+        </tr></thead>
+        <tbody id="expenseHistoryBody"></tbody>
+      </table>
+    </div>
+    <div style="background:var(--gray);border-radius:10px;padding:12px 18px;margin-top:12px;display:flex;justify-content:space-between">
+      <span style="font-weight:600;color:var(--muted)">รายจ่ายรวมวันที่เลือก</span>
+      <span id="expHistoryTotal" style="font-weight:700;color:var(--red)">฿0.00</span>
+    </div>
+  </div>
+
   <!-- TAB ออเดอร์น้ำแข็ง -->
   <div class="panel" id="tab-order">
     <div class="form-row">
@@ -355,6 +416,13 @@
       <span id="iceTotalDisplay" style="font-size:1.4rem;font-weight:700;color:var(--dark)">฿0.00</span>
     </div>
 
+    <!-- ของแถม -->
+    <div style="margin-bottom:16px">
+      <div style="font-weight:600;color:var(--dark);margin-bottom:8px;font-size:.9rem">🎁 ของแถม (ไม่คิดเงิน)</div>
+      <div id="bonusRows"></div>
+      <button class="btn-add-row" onclick="addBonusRow()" style="width:auto;margin-top:6px">➕ เพิ่มของแถม</button>
+    </div>
+
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-save" onclick="saveIceOrder()">💾 บันทึกออเดอร์</button>
       <button class="btn-save" style="background:linear-gradient(135deg,#10B981,#065F46)" onclick="saveIceOrderAndLink()">💾 บันทึก + โยงไปยอดค้างจ่าย</button>
@@ -378,6 +446,7 @@
           <th>ป่น (฿)</th>
           <th>มัด (฿)</th>
           <th>ก้อน (฿)</th>
+          <th>กั๊ก (฿)</th>
         </tr></thead>
         <tbody id="pricesBody"></tbody>
       </table>
@@ -400,7 +469,7 @@ let drivers   = JSON.parse(localStorage.getItem('cash_drivers') ||
 
 // คนขับเสริมที่เห็นลูกค้าทุกคน
 const SUPER_DRIVERS = ['วิน','ริน'];
-const ICE_TYPES = ['หลอดใหญ่','หลอดจิ๋ว','ป่น','มัด','ก้อน'];
+const ICE_TYPES = ['หลอดใหญ่','หลอดจิ๋ว','ป่น','มัด','ก้อน','กั๊ก'];
 let icePrices = JSON.parse(localStorage.getItem('ice_prices') || '{}'); // {ชื่อลูกค้า: {หลอดใหญ่:25, หลอดจิ๋ว:15, ...}}
 
 // ============================================================
@@ -628,22 +697,22 @@ async function saveAll(){
   const newEntries = [];
 
   rows.forEach(row=>{
-    const cust   = row.querySelector('.cr-cust').value.trim();
-    const due    = row.querySelector('.cr-due').value;
-    const amt    = parseFloat(row.querySelector('.cr-amt').value);
-    const diff   = parseFloat(row.querySelector('.cr-diff').value) || 0;
-    const paid   = row.querySelector('.cr-paid').value;
+    const cust     = row.querySelector('.cr-cust').value.trim();
+    const amt      = parseFloat(row.querySelector('.cr-amt').value);
+    const paid     = row.querySelector('.cr-paid').value;
+    const date2    = document.getElementById('f_date').value;
+    const orderAmt = getOrderAmountForCustomer(cust, date2);
+    const diff     = isNaN(amt) ? 0 : amt - orderAmt;
 
-    if(!cust && !due && isNaN(amt)) return;
+    if(!cust && isNaN(amt)) return;
     if(!cust){ alert('กรุณาเลือกชื่อลูกค้าค่ะ'); return; }
-    if(!due){ alert('กรุณาใส่วันที่ของยอดค่ะ'); return; }
-    if(isNaN(amt)||amt<=0){ alert('กรุณาใส่ยอดเงินค่ะ'); return; }
+    if(isNaN(amt)||amt<=0){ alert('กรุณาใส่ยอดเงินที่รับมาค่ะ'); return; }
 
-    const lateDays = paid && due ? Math.max(0, Math.floor((new Date(paid)-new Date(due))/(1000*60*60*24))) : 0;
+    const lateDays = paid && date ? Math.max(0, Math.floor((new Date(paid)-new Date(date))/(1000*60*60*24))) : 0;
     const status   = paid ? (lateDays > 0 ? 'late' : 'paid') : 'unpaid';
     const diffLabel = diff > 0 ? '➕ เกิน' : diff < 0 ? '⚠️ ขาด' : '';
 
-    newEntries.push({ id:Date.now()+Math.random(), date, driver, receiver, customer:cust, dueDate:due, amount:amt, diff, paidDate:paid, status, lateDays, diffLabel });
+    newEntries.push({ id:Date.now()+Math.random(), date, driver, receiver, customer:cust, dueDate:date, amount:amt, diff, paidDate:paid, status, lateDays:0, diffLabel });
   });
 
   if(newEntries.length === 0){
@@ -769,6 +838,7 @@ function switchTab(id, btn){
   if(id==='order') { populateOrderSelects(); renderIceOrderRows(); }
   if(id==='prices') renderPricesTable();
   if(id==='verify') { populateVerifyDrivers(); renderVerify(); }
+  if(id==='expense') { initExpenseTab(); renderExpenseHistory(); }
 }
 
 // ============================================================
@@ -1111,9 +1181,11 @@ async function saveIceOrder(){
 
   localStorage.setItem('ice_prices', JSON.stringify(icePrices));
 
+  const bonusItems = getBonusItems();
+
   // บันทึกลง localStorage ด้วย
   const orders = JSON.parse(localStorage.getItem('ice_orders')||'[]');
-  orders.unshift({id:Date.now(), date, customer:cust, driver, round, note, total});
+  orders.unshift({id:Date.now(), date, customer:cust, driver, round, note, total, bonusItems});
   localStorage.setItem('ice_orders', JSON.stringify(orders));
 
   // Save to Sheets
@@ -1202,7 +1274,9 @@ function resetIceOrder(){
   document.getElementById('o_cust').value='';
   document.getElementById('o_note').value='';
   document.getElementById('iceOrderRows').innerHTML='';
+  document.getElementById('bonusRows').innerHTML='';
   document.getElementById('iceTotalDisplay').textContent='฿0.00';
+  bonusRowId=0;
 }
 
 // ============================================================
@@ -1232,7 +1306,7 @@ function renderPricesTable(){
     const cells = ICE_TYPES.map(type=>`
       <td>
         <input type="number" value="${prices[type]||0}" min="0" step="0.01"
-          style="border:1.5px solid var(--border);border-radius:6px;padding:5px 8px;width:80px;font-family:'Sarabun',sans-serif;font-size:.86rem;text-align:center"
+          style="border:1.5px solid var(--border);border-radius:6px;padding:5px 8px;width:75px;font-family:'Sarabun',sans-serif;font-size:.86rem;text-align:center"
           onchange="updatePrice('${c}','${type}',this.value)"
           onkeydown="if(event.key==='Enter')this.blur()">
       </td>`).join('');
@@ -1267,6 +1341,154 @@ function exportPricesCSV(){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download=`ราคาน้ำแข็ง_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ============================================================
+// BONUS ROWS (ของแถม)
+// ============================================================
+let bonusRowId = 0;
+function addBonusRow(){
+  const id = ++bonusRowId;
+  const div = document.createElement('div');
+  div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto;gap:8px;padding:8px 12px;border-bottom:1px solid #F1F5F9;align-items:center;background:#FFF9C4';
+  div.id = 'brow_'+id;
+  const typeOpts = ICE_TYPES.map(t=>`<option>${t}</option>`).join('');
+  div.innerHTML = `
+    <select style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem">
+      <option value="">-- เลือกประเภท --</option>${typeOpts}
+    </select>
+    <input type="number" placeholder="จำนวน" min="0"
+      style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%">
+    <button class="btn-remove" onclick="document.getElementById('brow_${id}').remove()">ลบ</button>
+  `;
+  document.getElementById('bonusRows').appendChild(div);
+}
+
+function getBonusItems(){
+  const items = [];
+  document.querySelectorAll('#bonusRows > div').forEach(row=>{
+    const type = row.querySelector('select').value;
+    const qty  = parseFloat(row.querySelectorAll('input')[0].value)||0;
+    if(type && qty > 0) items.push({type, qty});
+  });
+  return items;
+}
+
+// ============================================================
+// EXPENSE TAB
+// ============================================================
+let expenseRowId = 0;
+let expenses = JSON.parse(localStorage.getItem('daily_expenses')||'[]');
+const EXP_TYPES = ['ค่าโอที','เบิกเงินพนักงาน','ค่าน้ำมัน','ค่าใช้จ่ายอื่นๆ'];
+
+function initExpenseTab(){
+  document.getElementById('exp_date').value = new Date().toISOString().split('T')[0];
+  if(document.getElementById('expenseRows').children.length === 0) addExpenseRow();
+}
+
+function addExpenseRow(){
+  const id = ++expenseRowId;
+  const div = document.createElement('div');
+  div.style.cssText = 'display:grid;grid-template-columns:2fr 1.5fr 1fr 1.5fr auto;gap:8px;padding:8px 12px;border-bottom:1px solid #F1F5F9;align-items:center';
+  div.id = 'erow_'+id;
+  const typeOpts = EXP_TYPES.map(t=>`<option>${t}</option>`).join('');
+  div.innerHTML = `
+    <select class="e-type" style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%">
+      ${typeOpts}
+    </select>
+    <input type="text" class="e-name" placeholder="ชื่อผู้รับ"
+      style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%">
+    <input type="number" class="e-amt" placeholder="0" min="0" oninput="calcExpTotal()"
+      style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%">
+    <input type="text" class="e-note" placeholder="หมายเหตุ"
+      style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%">
+    <button class="btn-remove" onclick="document.getElementById('erow_${id}').remove();calcExpTotal()">ลบ</button>
+  `;
+  document.getElementById('expenseRows').appendChild(div);
+}
+
+function calcExpTotal(){
+  let total = 0;
+  document.querySelectorAll('#expenseRows .e-amt').forEach(inp=>{
+    total += parseFloat(inp.value)||0;
+  });
+  document.getElementById('expTotalDisplay').textContent = '฿'+fmt(total);
+}
+
+async function saveExpenses(){
+  const date     = document.getElementById('exp_date').value;
+  const round    = document.getElementById('exp_round').value;
+  const recorder = document.getElementById('exp_recorder').value;
+  if(!date){ alert('กรุณาเลือกวันที่ค่ะ'); return; }
+
+  const rows = document.querySelectorAll('#expenseRows > div');
+  const newExp = [];
+  rows.forEach(row=>{
+    const type = row.querySelector('.e-type').value;
+    const name = row.querySelector('.e-name').value.trim();
+    const amt  = parseFloat(row.querySelector('.e-amt').value)||0;
+    const note = row.querySelector('.e-note').value.trim();
+    if(amt > 0) newExp.push({id:Date.now()+Math.random(), date, round, recorder, type, name, amount:amt, note});
+  });
+
+  if(!newExp.length){ alert('กรุณาใส่รายจ่ายอย่างน้อย 1 รายการค่ะ'); return; }
+
+  expenses = [...newExp, ...expenses];
+  localStorage.setItem('daily_expenses', JSON.stringify(expenses));
+
+  if(SHEET_URL){
+    for(const e of newExp){
+      await fetch(SHEET_URL, {
+        method:'POST', mode:'no-cors',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'saveExpense', ...e}),
+        redirect:'follow'
+      });
+    }
+  }
+
+  // Reset
+  document.getElementById('expenseRows').innerHTML='';
+  expenseRowId = 0;
+  addExpenseRow();
+  calcExpTotal();
+  renderExpenseHistory();
+  showToast(`บันทึกรายจ่าย ${newExp.length} รายการ ✅`);
+}
+
+function renderExpenseHistory(){
+  const fd = document.getElementById('exp_filter_date').value;
+  const filtered = fd ? expenses.filter(e=>e.date===fd) : expenses.slice(0,50);
+  const tbody = document.getElementById('expenseHistoryBody');
+  tbody.innerHTML='';
+  let total = 0;
+  filtered.forEach((e,i)=>{
+    total += e.amount||0;
+    const tr = document.createElement('tr');
+    tr.innerHTML=`
+      <td style="color:var(--muted)">${i+1}</td>
+      <td>${fmtDate(e.date)}</td>
+      <td><span style="background:var(--light);color:var(--dark);padding:2px 7px;border-radius:10px;font-size:.78rem">${e.round||'—'}</span></td>
+      <td style="font-weight:600">${e.type||'—'}</td>
+      <td>${e.name||'—'}</td>
+      <td style="color:var(--red);font-weight:600">${fmt(e.amount)}</td>
+      <td style="color:var(--muted);font-size:.82rem">${e.note||'—'}</td>
+      <td>${e.recorder||'—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('expHistoryTotal').textContent = '฿'+fmt(total);
+}
+
+function exportExpenseCSV(){
+  const hdr=['วันที่','รอบ','ประเภท','ชื่อผู้รับ','จำนวน','หมายเหตุ','ผู้บันทึก'];
+  const rows=expenses.map(e=>[fmtDate(e.date),e.round,e.type,e.name,e.amount,e.note,e.recorder]);
+  const csv=[hdr,...rows].map(r=>r.map(c=>`"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`รายจ่าย_${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
 }
 
