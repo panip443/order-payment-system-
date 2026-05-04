@@ -172,6 +172,7 @@
 <div class="tabs" style="margin-top:14px">
   <button class="tab-btn active" onclick="switchTab('entry',this)">📝 บันทึกรายวัน</button>
   <button class="tab-btn" onclick="switchTab('order',this)">🧊 ออเดอร์น้ำแข็ง</button>
+  <button class="tab-btn" onclick="switchTab('verify',this)">📊 ตรวจสอบยอด</button>
   <button class="tab-btn" onclick="switchTab('history',this)">📋 ประวัติรายการ</button>
   <button class="tab-btn" onclick="switchTab('status',this)">🔍 สถานะลูกค้า</button>
   <button class="tab-btn" onclick="switchTab('prices',this)">💲 ราคาน้ำแข็ง</button>
@@ -198,15 +199,15 @@
     <div class="customer-rows">
       <div class="customer-row-header">
         <div>ชื่อลูกค้า</div>
-        <div>วันที่ของยอด</div>
-        <div>ยอดเงิน (฿)</div>
-        <div>เงินเกิน/ขาด (฿)</div>
+        <div>ยอดออเดอร์ (฿)</div>
+        <div>ยอดรับจริง (฿)</div>
+        <div>ส่วนต่าง (฿)</div>
         <div>วันที่จ่ายจริง</div>
         <div></div>
       </div>
       <div id="customerRowsBody"></div>
     </div>
-    <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">💡 เงินเกิน/ขาด: ถ้าตรงพอดีเว้นว่าง / เกินใส่ +100 / ขาดใส่ -100</p>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">💡 ยอดออเดอร์ดึงมาจากที่กรอกไว้ในแท็บออเดอร์น้ำแข็งอัตโนมัติค่ะ</p>
 
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn-add-row" onclick="addCustomerRow()" style="width:auto;flex:1">➕ เพิ่มลูกค้า</button>
@@ -275,6 +276,45 @@
     <p style="color:var(--muted);font-size:.85rem;margin-bottom:6px">💡 คลิกชื่อเพื่อแก้ไข กด Enter เพื่อบันทึก</p>
     <div class="cust-grid" id="custGrid"></div>
     <button class="btn-add-cust" onclick="addCustomer()">➕ เพิ่มลูกค้าใหม่</button>
+  </div>
+
+  <!-- TAB ตรวจสอบยอด -->
+  <div class="panel" id="tab-verify">
+    <div class="filter-bar" style="margin-bottom:16px">
+      <input type="date" id="v_date" onchange="renderVerify()">
+      <select id="v_driver" onchange="renderVerify()"><option value="">ทุกคนขับ</option></select>
+      <button class="btn-export reload" onclick="renderVerify()">🔄 อัปเดต</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>ลูกค้า</th><th>คนขับ</th><th>รอบ</th>
+          <th>ยอดออเดอร์ (฿)</th><th>ยอดรับจริง (฿)</th>
+          <th>ส่วนต่าง (฿)</th><th>สถานะ</th>
+        </tr></thead>
+        <tbody id="verifyBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyVerify" class="empty-state" style="display:none">
+      <p>ไม่มีข้อมูล กรุณาเลือกวันที่ค่ะ</p>
+    </div>
+    <!-- สรุปรวม -->
+    <div id="verifySummary" style="display:none;margin-top:16px;background:var(--gray);border-radius:12px;padding:16px 20px">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center">
+        <div>
+          <div style="font-size:.75rem;color:var(--muted);font-weight:600;margin-bottom:4px">ยอดออเดอร์รวม</div>
+          <div id="vSumOrder" style="font-size:1.2rem;font-weight:700;color:var(--dark)">฿0.00</div>
+        </div>
+        <div>
+          <div style="font-size:.75rem;color:var(--muted);font-weight:600;margin-bottom:4px">ยอดรับจริงรวม</div>
+          <div id="vSumReceived" style="font-size:1.2rem;font-weight:700;color:var(--green)">฿0.00</div>
+        </div>
+        <div>
+          <div style="font-size:.75rem;color:var(--muted);font-weight:600;margin-bottom:4px">ส่วนต่างรวม</div>
+          <div id="vSumDiff" style="font-size:1.2rem;font-weight:700">฿0.00</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- TAB ออเดอร์น้ำแข็ง -->
@@ -514,19 +554,56 @@ function addCustomerRow(custName='', dueDate='', amount='', diff='', paidDate=''
   div.id = 'crow_'+id;
   const filtered = getFilteredCustomers();
   const custOpts = filtered.map(c=>`<option value="${c}" ${c===custName?'selected':''}>${c}</option>`).join('');
+  const entryDate = document.getElementById('f_date').value;
+  const orderAmt = getOrderAmountForCustomer(custName, entryDate);
   div.innerHTML = `
-    <select class="cr-cust" style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%">
+    <select class="cr-cust" onchange="autoFillOrderAmount(this,${id})"
+      style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%">
       <option value="">-- เลือกลูกค้า --</option>${custOpts}
     </select>
-    <input type="date" class="cr-due" value="${dueDate}">
-    <input type="number" class="cr-amt" placeholder="0.00" step="0.01" min="0" value="${amount}">
-    <input type="number" class="cr-diff" placeholder="0.00" step="0.01" value="${diff}"
-      style="color:${parseFloat(diff)<0?'var(--red)':parseFloat(diff)>0?'var(--green)':'inherit'}"
-      oninput="this.style.color=parseFloat(this.value)<0?'var(--red)':parseFloat(this.value)>0?'var(--green)':'inherit'">
-    <input type="date" class="cr-paid" value="${paidDate}" title="ถ้ายังไม่จ่าย เว้นว่างไว้">
+    <div class="cr-order-display" id="order_${id}"
+      style="text-align:center;font-weight:600;color:var(--dark);font-size:.88rem;padding:6px 4px">
+      ${orderAmt>0?fmt(orderAmt)+' ฿':'<span style="color:var(--muted);font-size:.78rem">ไม่มีออเดอร์</span>'}
+    </div>
+    <input type="number" class="cr-amt" placeholder="0.00" step="0.01" min="0" value="${amount}" oninput="calcEntryDiff(${id})">
+    <span class="cr-diff-display" id="entrydiff_${id}" style="text-align:center;font-weight:700;font-size:.88rem">—</span>
+    <input type="date" class="cr-paid" value="${paidDate}">
     <button class="btn-remove" onclick="removeRow(${id})">ลบ</button>
   `;
   document.getElementById('customerRowsBody').appendChild(div);
+  if(amount) calcEntryDiff(id);
+}
+
+function getOrderAmountForCustomer(custName, date){
+  if(!custName||!date) return 0;
+  const orders = JSON.parse(localStorage.getItem('ice_orders')||'[]');
+  return orders.filter(o=>o.customer===custName&&o.date===date).reduce((s,o)=>s+(o.total||0),0);
+}
+
+function autoFillOrderAmount(sel, id){
+  const cust = sel.value;
+  const date = document.getElementById('f_date').value;
+  const amt = getOrderAmountForCustomer(cust, date);
+  const el = document.getElementById('order_'+id);
+  if(el) el.innerHTML = amt>0
+    ? `<span style="color:var(--dark)">${fmt(amt)} ฿</span>`
+    : '<span style="color:var(--muted);font-size:.78rem">ไม่มีออเดอร์</span>';
+  calcEntryDiff(id);
+}
+
+function calcEntryDiff(id){
+  const row = document.getElementById('crow_'+id);
+  if(!row) return;
+  const cust = row.querySelector('.cr-cust').value;
+  const date = document.getElementById('f_date').value;
+  const orderAmt = getOrderAmountForCustomer(cust, date);
+  const received = parseFloat(row.querySelector('.cr-amt').value)||0;
+  const el = document.getElementById('entrydiff_'+id);
+  if(!el) return;
+  if(!received){el.textContent='—';el.style.color='var(--muted)';return;}
+  const diff = received - orderAmt;
+  el.textContent = (diff>=0?'+':'')+fmt(diff)+' ฿';
+  el.style.color = diff===0?'var(--green)':diff<0?'var(--red)':'#92400E';
 }
 
 function removeRow(id){
@@ -691,6 +768,7 @@ function switchTab(id, btn){
   if(id==='customers') renderCustomers();
   if(id==='order') { populateOrderSelects(); renderIceOrderRows(); }
   if(id==='prices') renderPricesTable();
+  if(id==='verify') { populateVerifyDrivers(); renderVerify(); }
 }
 
 // ============================================================
@@ -868,6 +946,75 @@ function exportCSV(){
 }
 
 // ============================================================
+// VERIFY — ตรวจสอบยอด
+// ============================================================
+function populateVerifyDrivers(){
+  const sel = document.getElementById('v_driver');
+  const cur = sel.value;
+  while(sel.options.length>1) sel.remove(1);
+  drivers.forEach(d=>{ const o=document.createElement('option'); o.value=d; o.textContent=d; sel.appendChild(o); });
+  sel.value=cur;
+}
+
+function renderVerify(){
+  const date = document.getElementById('v_date').value;
+  const driver = document.getElementById('v_driver').value;
+  const tbody = document.getElementById('verifyBody');
+  const empty = document.getElementById('emptyVerify');
+  const summary = document.getElementById('verifySummary');
+  tbody.innerHTML='';
+
+  if(!date){ empty.style.display='block'; summary.style.display='none'; return; }
+
+  // ดึงออเดอร์น้ำแข็งวันนั้น
+  const orders = JSON.parse(localStorage.getItem('ice_orders')||'[]')
+    .filter(o => o.date===date && (!driver||o.driver===driver));
+
+  // ดึงยอดรับจริงวันนั้น
+  const received = entries.filter(e => e.date===date && (!driver||e.driver===driver));
+
+  // สร้าง map ลูกค้า → ยอดรับจริง
+  const receivedMap = {};
+  received.forEach(e=>{
+    if(!receivedMap[e.customer]) receivedMap[e.customer]=0;
+    receivedMap[e.customer] += e.amount||0;
+  });
+
+  if(!orders.length){ empty.style.display='block'; summary.style.display='none'; return; }
+  empty.style.display='none'; summary.style.display='block';
+
+  let sumOrder=0, sumReceived=0;
+  orders.forEach((o,i)=>{
+    const recv = receivedMap[o.customer]||0;
+    const diff = recv - o.total;
+    sumOrder += o.total; sumReceived += recv;
+    let badge='';
+    if(recv===0) badge='<span class="badge unpaid">❌ ยังไม่รับ</span>';
+    else if(diff===0) badge='<span class="badge paid">✅ ตรง</span>';
+    else if(diff<0) badge='<span class="badge low">⚠️ ขาด</span>';
+    else badge='<span class="badge over">➕ เกิน</span>';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td style="color:var(--muted)">${i+1}</td>
+      <td style="font-weight:600;text-align:left">${o.customer}</td>
+      <td>${o.driver||'—'}</td>
+      <td><span style="background:var(--light);color:var(--dark);padding:2px 7px;border-radius:10px;font-size:.78rem">${o.round||'—'}</span></td>
+      <td style="color:var(--dark);font-weight:600">${fmt(o.total)}</td>
+      <td style="color:${recv>0?'var(--green)':'var(--muted)'};font-weight:600">${recv>0?fmt(recv):'—'}</td>
+      <td style="font-weight:600;color:${diff===0?'var(--green)':diff<0?'var(--red)':'#92400E'}">${recv>0?(diff>=0?'+':'')+fmt(diff):'—'}</td>
+      <td>${badge}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const totalDiff = sumReceived - sumOrder;
+  document.getElementById('vSumOrder').textContent='฿'+fmt(sumOrder);
+  document.getElementById('vSumReceived').textContent='฿'+fmt(sumReceived);
+  document.getElementById('vSumDiff').textContent=(totalDiff>=0?'+':'')+fmt(totalDiff)+' ฿';
+  document.getElementById('vSumDiff').style.color=totalDiff===0?'var(--green)':totalDiff<0?'var(--red)':'#92400E';
+}
+
+// ============================================================
 // ICE ORDER — POPULATE SELECTS
 // ============================================================
 function autoFillDriver(){
@@ -963,6 +1110,11 @@ async function saveIceOrder(){
   if(total===0){ alert('กรุณากรอกจำนวนน้ำแข็งอย่างน้อย 1 รายการค่ะ'); return; }
 
   localStorage.setItem('ice_prices', JSON.stringify(icePrices));
+
+  // บันทึกลง localStorage ด้วย
+  const orders = JSON.parse(localStorage.getItem('ice_orders')||'[]');
+  orders.unshift({id:Date.now(), date, customer:cust, driver, round, note, total});
+  localStorage.setItem('ice_orders', JSON.stringify(orders));
 
   // Save to Sheets
   if(SHEET_URL){
