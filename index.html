@@ -424,8 +424,8 @@
     </div>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn-save" onclick="saveIceOrder()">💾 บันทึกออเดอร์</button>
-      <button class="btn-save" style="background:linear-gradient(135deg,#10B981,#065F46)" onclick="saveIceOrderAndLink()">💾 บันทึก + โยงไปยอดค้างจ่าย</button>
+      <button id="btnSaveOrder" class="btn-save" onclick="saveIceOrder()">💾 บันทึกออเดอร์</button>
+      <button id="btnSaveOrderLink" class="btn-save" style="background:linear-gradient(135deg,#10B981,#065F46)" onclick="saveIceOrderAndLink()">💾 บันทึก + โยงยอดค้างจ่าย</button>
     </div>
     <p style="font-size:.78rem;color:var(--muted);margin-top:10px">💡 "บันทึก + โยง" จะสร้างรายการค้างจ่ายในแท็บบันทึกรายวันอัตโนมัติค่ะ</p>
   </div>
@@ -1179,16 +1179,20 @@ async function saveIceOrder(){
   if(total===0){ alert('กรุณากรอกจำนวนน้ำแข็งอย่างน้อย 1 รายการค่ะ'); return; }
 
   // Disable ปุ่มทันที กันกดซ้ำ
-  const btns = document.querySelectorAll('#tab-order .btn-save');
-  btns.forEach(b=>{ b.disabled=true; b.style.opacity='.5'; b.textContent='⏳ กำลังบันทึก...'; });
+  const btn1 = document.getElementById('btnSaveOrder');
+  const btn2 = document.getElementById('btnSaveOrderLink');
+  [btn1,btn2].forEach(b=>{ if(b){ b.disabled=true; b.style.opacity='.5'; }});
+  if(btn1) btn1.innerHTML='⏳ กำลังบันทึก...';
 
   localStorage.setItem('ice_prices', JSON.stringify(icePrices));
   const bonusItems = getBonusItems();
+  
+  // จำกัด localStorage ไว้แค่ 200 รายการล่าสุด
   const orders = JSON.parse(localStorage.getItem('ice_orders')||'[]');
   orders.unshift({id:Date.now(), date, customer:cust, driver, round, note, total, bonusItems});
-  localStorage.setItem('ice_orders', JSON.stringify(orders));
+  localStorage.setItem('ice_orders', JSON.stringify(orders.slice(0,200)));
 
-  // ส่ง Sheets ครั้งเดียว (ไม่ await ให้รอ)
+  // ส่ง Sheets แบบ fire-and-forget (ไม่รอ)
   if(SHEET_URL){
     fetch(SHEET_URL, {
       method:'POST', mode:'no-cors',
@@ -1201,12 +1205,15 @@ async function saveIceOrder(){
         total, prices:icePrices[cust]
       }),
       redirect:'follow'
-    });
+    }).catch(()=>{});
   }
 
   showToast(`บันทึกออเดอร์ ${cust} ยอด ฿${fmt(total)} สำเร็จ ✅`);
   resetIceOrder();
-  btns.forEach(b=>{ b.disabled=false; b.style.opacity='1'; b.textContent=b.id==='btnSaveOrder'?'💾 บันทึกออเดอร์':'💾 บันทึก + โยงไปยอดค้างจ่าย'; });
+  
+  // Enable ปุ่มกลับ
+  if(btn1){ btn1.disabled=false; btn1.style.opacity='1'; btn1.innerHTML='💾 บันทึกออเดอร์'; }
+  if(btn2){ btn2.disabled=false; btn2.style.opacity='1'; }
 }
 
 async function saveIceOrderAndLink(){
