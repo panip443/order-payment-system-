@@ -175,7 +175,7 @@
     <div class="form-row">
       <div class="form-group"><label>วันที่บันทึก</label><input type="date" id="f_date"></div>
       <div class="form-group"><label>คนรถ</label>
-        <select id="f_driver"><option value="">-- เลือกคนรถ --</option></select>
+        <select id="f_driver" onchange="refreshCustomerRowDropdowns()"><option value="">-- เลือกคนรถ --</option></select>
       </div>
       <div class="form-group"><label>ผู้รับเงิน</label>
         <select id="f_receiver">
@@ -277,8 +277,12 @@ let SHEET_URL = localStorage.getItem('cust_sheet_url') || 'https://script.google
 let entries   = JSON.parse(localStorage.getItem('cust_entries') || '[]');
 let customers = JSON.parse(localStorage.getItem('cust_names') ||
   JSON.stringify(['ลูกค้าที่ 1','ลูกค้าที่ 2','ลูกค้าที่ 3']));
+let customerDriverMap = JSON.parse(localStorage.getItem('cust_driver_map') || '{}');
 let drivers   = JSON.parse(localStorage.getItem('cash_drivers') ||
   JSON.stringify(['โซ','จำเริญ','เจน','เพ้ง','อิง','เชียร','ตุ้ม','นาง','บิ๊ก','สมิง','ระ','คาน','เดช','วิน','โว','ริน','เอ๋']));
+
+// คนขับเสริมที่เห็นลูกค้าทุกคน
+const SUPER_DRIVERS = ['วิน','ริน'];
 
 // ============================================================
 // INIT
@@ -338,8 +342,17 @@ async function loadCustomersFromSheet(){
     const res = await fetch(SHEET_URL+'?action=getCustomerNames', {method:'GET', redirect:'follow'});
     const data = await res.json();
     if(Array.isArray(data) && data.length > 0){
-      customers = data;
+      // data = [{name, driver, note}]
+      customers = data.map(r => typeof r === 'string' ? r : r.name).filter(Boolean);
+      // สร้าง map ชื่อลูกค้า → คนขับประจำ
+      customerDriverMap = {};
+      data.forEach(r => {
+        if(typeof r === 'object' && r.name && r.driver){
+          customerDriverMap[r.name] = r.driver.split(',').map(d=>d.trim()).filter(Boolean);
+        }
+      });
       localStorage.setItem('cust_names', JSON.stringify(customers));
+      localStorage.setItem('cust_driver_map', JSON.stringify(customerDriverMap));
       populateFilterSelects();
       refreshCustomerRowDropdowns();
       if(document.getElementById('tab-customers').classList.contains('active')) renderCustomers();
@@ -382,14 +395,28 @@ function populateFilterSelects(){
 // ============================================================
 // CUSTOMER ROWS
 // ============================================================
+function getFilteredCustomers(){
+  const driver = document.getElementById('f_driver').value;
+  if(!driver) return customers;
+  if(SUPER_DRIVERS.includes(driver)) return customers;
+  if(driver === 'มาเอาเองที่โรงงาน') return customers.filter(c=>{
+    const drvs = customerDriverMap[c]||[];
+    return drvs.includes('มาเอาเองที่โรงงาน');
+  });
+  return customers.filter(c=>{
+    const drvs = customerDriverMap[c]||[];
+    return drvs.length===0 || drvs.includes(driver);
+  });
+}
+
 let rowId = 0;
 function addCustomerRow(custName='', dueDate='', amount='', diff='', paidDate=''){
-  customers = JSON.parse(localStorage.getItem('cust_names') || JSON.stringify(customers));
   const id = ++rowId;
   const div = document.createElement('div');
   div.className = 'customer-row';
   div.id = 'crow_'+id;
-  const custOpts = customers.map(c=>`<option value="${c}" ${c===custName?'selected':''}>${c}</option>`).join('');
+  const filtered = getFilteredCustomers();
+  const custOpts = filtered.map(c=>`<option value="${c}" ${c===custName?'selected':''}>${c}</option>`).join('');
   div.innerHTML = `
     <select class="cr-cust" style="border:1.5px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Sarabun',sans-serif;font-size:.88rem;width:100%">
       <option value="">-- เลือกลูกค้า --</option>${custOpts}
@@ -721,8 +748,9 @@ function saveCustomersToSheet(){
 function refreshCustomerRowDropdowns(){
   document.querySelectorAll('#customerRowsBody .cr-cust').forEach(sel=>{
     const cur = sel.value;
+    const filtered = getFilteredCustomers();
     sel.innerHTML = '<option value="">-- เลือกลูกค้า --</option>' +
-      customers.map(c=>`<option value="${c}" ${c===cur?'selected':''}>${c}</option>`).join('');
+      filtered.map(c=>`<option value="${c}" ${c===cur?'selected':''}>${c}</option>`).join('');
   });
 }
 
